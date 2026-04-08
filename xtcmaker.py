@@ -33,12 +33,11 @@ DISPLAY_HEIGHT = 792
 
 # 4階調量子化プリセット (t1, t2, t3) → 出力レベル 0, 85, 170, 255
 QUANTIZE_PRESETS = {
-    'soft':   (56, 128, 184),   # 中間域広め、自然な階調
+    'deep':   (40, 128, 168),   # 最も階調豊か
+    'light':  (48, 128, 176),   # 階調豊か
+    'soft':   (56, 128, 184),   # 中間域広め、読みやすい
     'normal': (64, 128, 192),   # デフォルト（均一量子化標準）
     'hard':   (72, 128, 200),   # コントラスト強め
-    'sharp':  (80, 128, 208),   # 輪郭重視
-    'crisp':  (88, 128, 216),   # 最大コントラスト
-    'lloyd':  (42, 128, 213),   # Lloyd-Max最小歪み量子化
 }
 
 # XTCH ファイル形式定数（epub2xtc.py 準拠）
@@ -783,23 +782,22 @@ def select_dither_2bit() -> str:
     ))
 
     dithers = [
-        ("1", f"Normal（{QUANTIZE_PRESETS['normal'][0]}-{QUANTIZE_PRESETS['normal'][1]}-{QUANTIZE_PRESETS['normal'][2]}・デフォルト）"),
-        ("2", f"Soft（{QUANTIZE_PRESETS['soft'][0]}-{QUANTIZE_PRESETS['soft'][1]}-{QUANTIZE_PRESETS['soft'][2]}）"),
-        ("3", f"Hard（{QUANTIZE_PRESETS['hard'][0]}-{QUANTIZE_PRESETS['hard'][1]}-{QUANTIZE_PRESETS['hard'][2]}）"),
-        ("4", f"Sharp（{QUANTIZE_PRESETS['sharp'][0]}-{QUANTIZE_PRESETS['sharp'][1]}-{QUANTIZE_PRESETS['sharp'][2]}）"),
-        ("5", f"Crisp（{QUANTIZE_PRESETS['crisp'][0]}-{QUANTIZE_PRESETS['crisp'][1]}-{QUANTIZE_PRESETS['crisp'][2]}）"),
-        ("6", f"Lloyd-Max（{QUANTIZE_PRESETS['lloyd'][0]}-{QUANTIZE_PRESETS['lloyd'][1]}-{QUANTIZE_PRESETS['lloyd'][2]}）"),
+        ("1", f"Deep（{QUANTIZE_PRESETS['deep'][0]}-{QUANTIZE_PRESETS['deep'][1]}-{QUANTIZE_PRESETS['deep'][2]}）"),
+        ("2", f"Light（{QUANTIZE_PRESETS['light'][0]}-{QUANTIZE_PRESETS['light'][1]}-{QUANTIZE_PRESETS['light'][2]}）"),
+        ("3", f"Soft（{QUANTIZE_PRESETS['soft'][0]}-{QUANTIZE_PRESETS['soft'][1]}-{QUANTIZE_PRESETS['soft'][2]}）"),
+        ("4", f"Normal（{QUANTIZE_PRESETS['normal'][0]}-{QUANTIZE_PRESETS['normal'][1]}-{QUANTIZE_PRESETS['normal'][2]}・デフォルト）"),
+        ("5", f"Hard（{QUANTIZE_PRESETS['hard'][0]}-{QUANTIZE_PRESETS['hard'][1]}-{QUANTIZE_PRESETS['hard'][2]}）"),
     ]
 
     for key, desc in dithers:
         console.print(f"  [yellow]{key}[/yellow]: {desc}")
 
     dither_map = {
-        "1": "normal", "2": "soft",
-        "3": "hard", "4": "sharp",
-        "5": "crisp", "6": "lloyd"
+        "1": "deep", "2": "light",
+        "3": "soft", "4": "normal",
+        "5": "hard"
     }
-    choice = Prompt.ask("\n選択", choices=["1", "2", "3", "4", "5", "6"], default="1")
+    choice = Prompt.ask("\n選択", choices=["1", "2", "3", "4", "5"], default="4")
     return dither_map[choice]
 
 
