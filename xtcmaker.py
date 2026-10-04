@@ -873,12 +873,12 @@ def main():
     console.print("\n[yellow]ステップ 2/3: 2bit 方式[/yellow]")
     dither_2bit = select_dither_2bit()
 
-    console.print("\n[yellow]ステップ 3/3: 明るさ調整（60-100%、100 が標準）[/yellow]")
+    console.print("\n[yellow]ステップ 3/3: 明るさ調整（60-200%、100 が標準）[/yellow]")
     brightness_input = Prompt.ask("  明るさ %", default="100")
     try:
         brightness = int(brightness_input)
-        if brightness < 60 or brightness > 100:
-            console.print("[red]60-100 の範囲で入力してね。デフォルト 100% を使います。[/red]")
+        if brightness < 60 or brightness > 200:
+            console.print("[red]60-200 の範囲で入力してね。デフォルト 100% を使います。[/red]")
             brightness = 100
     except ValueError:
         console.print("[red]数値で入力してね。デフォルト 100% を使います。[/red]")

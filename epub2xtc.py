@@ -102,7 +102,7 @@ def apply_extreme_contrast(img, pixels, width, height, t1, t2, t3, brightness=10
     - t1: 黒閾値（以下は黒）
     - t2: 暗中間閾値（t1-t2 は暗中間）
     - t3: 明中間閾値（t2-t3 は明中間、以上は白）
-    - brightness: 明るさ調整（60-100%、100 が標準）
+    - brightness: 明るさ調整（60-200%、100 が標準）
     """
     from PIL import ImageEnhance
 
@@ -191,7 +191,7 @@ def apply_dithering_2bit(img: Image.Image, method: str = 'none',
     Parameters:
     - morph_dilation: モルフォロジー膨張処理の半径（0=なし、1-2=推奨）
     - dark_mode: 画像を暗くする（-15% 輝度、少年漫画雑誌風）
-    - brightness: 明るさ調整（60-100%、100 が標準、90 がおすすめ）
+    - brightness: 明るさ調整（60-200%、100 が標準、90 がおすすめ）
     """
     from PIL import ImageFilter
 
@@ -603,7 +603,7 @@ def render_page_to_image(img_path: str, width: int = DISPLAY_WIDTH,
     dither_2bit: 2 ビット用ディザリング（None なら dither と同じ）
     enhance_contrast: コントラスト強調（2 ビット用）
     text_mode: テキスト最適化モード（文字を濃く表示）
-    brightness: 明るさ調整（60-100%、100 が標準、90 がおすすめ）
+    brightness: 明るさ調整（60-200%、100 が標準、90 がおすすめ）
     """
     with Image.open(img_path) as img:
         # アスペクト比を維持してリサイズ
@@ -848,7 +848,7 @@ def epub_to_xtc(epub_path: str, output_dir: str = None, bits: int = 2,
     EPUB を XTC 形式に変換
 
     Parameters:
-    - brightness: 明るさ調整（60-100%、100 が標準、90 がおすすめ）
+    - brightness: 明るさ調整（60-200%、100 が標準、90 がおすすめ）
     """
     epub_path = Path(epub_path).resolve()
 
@@ -1241,13 +1241,13 @@ def main():
             # 2 ビット用ディザリング選択
             dither_2bit = select_dither_2bit()
 
-            # 明るさ調整（60-100%）
-            console.print("\n[yellow]明るさ調整（60-100%、100 が標準、90 がおすすめ）[/yellow]")
+            # 明るさ調整（60-200%）
+            console.print("\n[yellow]明るさ調整（60-200%、100 が標準、90 がおすすめ）[/yellow]")
             brightness_input = Prompt.ask("  明るさ %", default="90")
             try:
                 brightness = int(brightness_input)
-                if brightness < 60 or brightness > 100:
-                    console.print("[red]60-100 の範囲で入力してね[/red]")
+                if brightness < 60 or brightness > 200:
+                    console.print("[red]60-200 の範囲で入力してね[/red]")
                     continue
             except ValueError:
                 console.print("[red]数値で入力してね[/red]")
@@ -1341,13 +1341,13 @@ def main():
             # 2 ビット用ディザリング選択
             dither_2bit = select_dither_2bit()
 
-            # 明るさ調整（60-100%）
-            console.print("\n[yellow]明るさ調整（60-100%、100 が標準、90 がおすすめ）[/yellow]")
+            # 明るさ調整（60-200%）
+            console.print("\n[yellow]明るさ調整（60-200%、100 が標準、90 がおすすめ）[/yellow]")
             brightness_input = Prompt.ask("  明るさ %", default="90")
             try:
                 brightness = int(brightness_input)
-                if brightness < 60 or brightness > 100:
-                    console.print("[red]60-100 の範囲で入力してね[/red]")
+                if brightness < 60 or brightness > 200:
+                    console.print("[red]60-200 の範囲で入力してね[/red]")
                     continue
             except ValueError:
                 console.print("[red]数値で入力してね[/red]")
