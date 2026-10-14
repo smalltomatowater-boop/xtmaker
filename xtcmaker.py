@@ -28,8 +28,19 @@ from rich.panel import Panel
 console = Console()
 
 # XTEINK X4/X3 ディスプレイ仕様
-DISPLAY_WIDTH = 528
-DISPLAY_HEIGHT = 792
+DEVICE_SIZES = {
+    "x4": (480, 800),
+    "x3": (528, 792),
+}
+DEFAULT_DEVICE = "x3"
+
+# 後方互換（デバイス未指定時のデフォルト）
+DISPLAY_WIDTH, DISPLAY_HEIGHT = DEVICE_SIZES[DEFAULT_DEVICE]
+
+
+def get_device_size(device: str) -> tuple:
+    """デバイス名から XTC ページ解像度を取得（raw/未知は既定デバイス）"""
+    return DEVICE_SIZES.get(device, DEVICE_SIZES[DEFAULT_DEVICE])
 
 # 4階調量子化プリセット (t1, t2, t3) → 出力レベル 0, 85, 170, 255
 QUANTIZE_PRESETS = {
@@ -64,7 +75,11 @@ def high_quality_downscale(img, target_size, sharpen=True):
 
     target_width, target_height = target_size
     orig_width, orig_height = img.size
+    # アスペクト比を保ったまま画面に収まる倍率（はみ出し＝カットを作らない）
     scale = min(target_width / orig_width, target_height / orig_height)
+    fit_width = max(1, round(orig_width * scale))
+    fit_height = max(1, round(orig_height * scale))
+    fit_size = (fit_width, fit_height)
 
     # 元の平均輝度を記録
     orig_gray = img.convert('L')
@@ -87,8 +102,8 @@ def high_quality_downscale(img, target_size, sharpen=True):
                 current = current.resize((new_width, new_height), Image.Resampling.LANCZOS)
                 remaining_scale /= 0.5
 
-    if current.size != target_size:
-        current = current.resize(target_size, Image.Resampling.LANCZOS)
+    if current.size != fit_size:
+        current = current.resize(fit_size, Image.Resampling.LANCZOS)
 
     # グレースケール化
     current = ImageOps.grayscale(current)
@@ -111,6 +126,13 @@ def high_quality_downscale(img, target_size, sharpen=True):
         from PIL import ImageEnhance
         enhancer = ImageEnhance.Brightness(current)
         current = enhancer.enhance(brightness_factor * 0.9)
+
+    # 画面サイズの白紙に中央配置（余った分は余白、画像は一切カットしない）
+    if current.size != target_size:
+        canvas = Image.new('L', target_size, 255)
+        canvas.paste(current, ((target_width - current.width) // 2,
+                               (target_height - current.height) // 2))
+        current = canvas
 
     return current
 
@@ -271,12 +293,7 @@ def pdf_to_epub_images(pdf_path: str, output_dir: str = None,
     console.print(f"[cyan]PDF を画像 EPUB 化：{pdf_path.name}[/cyan]")
 
     # デバイス解像度
-    if device == "x4":
-        target_size = (480, 800)
-    elif device == "x3":
-        target_size = (528, 792)
-    else:
-        target_size = None
+    target_size = DEVICE_SIZES.get(device)  # raw は None（リサイズしない）
 
     # PDF を開く
     doc = fitz.open(pdf_path)
@@ -565,7 +582,8 @@ def encode_xtg_page(img: Image.Image, bits: int = 2) -> bytes:
     return bytes(page_header) + bytes(image_data)
 
 
-def create_xtc_file(output_path: str, pages: list, title: str, author: str, bits: int = 2):
+def create_xtc_file(output_path: str, pages: list, title: str, author: str, bits: int = 2,
+                    page_size: tuple = (DISPLAY_WIDTH, DISPLAY_HEIGHT)):
     """XTC/XTCH ファイルを作成（epub2xtc.py 準拠の正式フォーマット）"""
     output_path = Path(output_path)
     page_count = len(pages)
@@ -628,8 +646,8 @@ def create_xtc_file(output_path: str, pages: list, title: str, author: str, bits
         for i in range(page_count):
             f.write(struct.pack('<Q', page_offsets[i]))
             f.write(struct.pack('<I', page_sizes[i]))
-            f.write(struct.pack('<H', DISPLAY_WIDTH))
-            f.write(struct.pack('<H', DISPLAY_HEIGHT))
+            f.write(struct.pack('<H', page_size[0]))
+            f.write(struct.pack('<H', page_size[1]))
 
         # データエリア
         for page_data in pages:
@@ -651,7 +669,7 @@ def process_page(args):
 
 def epub_to_xtc(epub_path: str, output_dir: str = None, bits: int = 2,
                 dither_2bit: str = None, brightness: int = 100,
-                max_workers: int = None) -> str:
+                max_workers: int = None, device: str = DEFAULT_DEVICE) -> str:
     """EPUB を XTC 形式に変換"""
     epub_path = Path(epub_path).resolve()
 
@@ -711,11 +729,13 @@ def epub_to_xtc(epub_path: str, output_dir: str = None, bits: int = 2,
             max_workers = max(1, multiprocessing.cpu_count() - 1)
 
         page_count = len(image_files)
-        console.print(f"  [dim]{page_count} ページを{max_workers}スレッドで処理[/dim]")
+        page_width, page_height = get_device_size(device)
+        console.print(f"  [dim]{page_count} ページを{max_workers}スレッドで処理"
+                      f"（{page_width}x{page_height}）[/dim]")
 
         # 並列処理
         tasks = [
-            (i, str(img_path), DISPLAY_WIDTH, DISPLAY_HEIGHT, bits, dither_2bit, brightness)
+            (i, str(img_path), page_width, page_height, bits, dither_2bit, brightness)
             for i, img_path in enumerate(image_files)
         ]
 
@@ -739,7 +759,8 @@ def epub_to_xtc(epub_path: str, output_dir: str = None, bits: int = 2,
             pages,
             metadata.get('title', 'Unknown'),
             metadata.get('author', 'Unknown'),
-            bits
+            bits,
+            page_size=(page_width, page_height)
         )
 
         return str(output_path)
@@ -835,12 +856,13 @@ def _worker_pdf_to_epub(pdf_path_str: str, epub_dir_str: str, device: str) -> tu
 
 
 def _worker_epub_to_xtc(epub_path_str: str, xtc_dir_str: str, bits: int,
-                        dither_2bit: str, brightness: int) -> tuple:
+                        dither_2bit: str, brightness: int,
+                        device: str = DEFAULT_DEVICE) -> tuple:
     """EPUB → XTC ワーカー"""
     try:
         result = epub_to_xtc(epub_path_str, xtc_dir_str, bits=bits,
                             dither_2bit=dither_2bit, brightness=brightness,
-                            max_workers=1)
+                            max_workers=1, device=device)
         return (True, result)
     except Exception as e:
         return (False, str(e))
@@ -995,7 +1017,7 @@ def main():
                 for epub in all_epubs:
                     console.print(f"  [dim]  EPUB→XTCH: {epub.name}[/dim]")
                     f = executor.submit(_worker_epub_to_xtc, str(epub), str(xtc_dir),
-                                       2, dither_2bit, brightness)
+                                       2, dither_2bit, brightness, device)
                     futures[f] = epub.name
 
                 for future in as_completed(futures):
@@ -1056,13 +1078,15 @@ def main():
             console.print(f"\n[cyan]Step 2/3: PDF → EPUB（{device}）[/cyan]")
             epub_path = pdf_to_epub_images(pdf_path, str(epub_dir), device=device)
             console.print(f"\n[cyan]Step 3/3: EPUB → XTCH[/cyan]")
-            xtc_path = epub_to_xtc(epub_path, str(xtc_dir), bits=2, dither_2bit=dither_2bit, brightness=brightness)
+            xtc_path = epub_to_xtc(epub_path, str(xtc_dir), bits=2, dither_2bit=dither_2bit,
+                                   brightness=brightness, device=device)
 
         elif input_type == 'pdf':
             console.print(f"\n[cyan]Step 1/2: PDF → EPUB（{device}）[/cyan]")
             epub_path = pdf_to_epub_images(str(input_path), str(epub_dir), device=device)
             console.print(f"\n[cyan]Step 2/2: EPUB → XTCH[/cyan]")
-            xtc_path = epub_to_xtc(epub_path, str(xtc_dir), bits=2, dither_2bit=dither_2bit, brightness=brightness)
+            xtc_path = epub_to_xtc(epub_path, str(xtc_dir), bits=2, dither_2bit=dither_2bit,
+                                   brightness=brightness, device=device)
 
         elif input_type == 'image_folder':
             console.print(f"\n[cyan]Step 1/3: 画像 → PDF[/cyan]")
@@ -1070,11 +1094,13 @@ def main():
             console.print(f"\n[cyan]Step 2/3: PDF → EPUB（{device}）[/cyan]")
             epub_path = pdf_to_epub_images(pdf_path, str(epub_dir), device=device)
             console.print(f"\n[cyan]Step 3/3: EPUB → XTCH[/cyan]")
-            xtc_path = epub_to_xtc(epub_path, str(xtc_dir), bits=2, dither_2bit=dither_2bit, brightness=brightness)
+            xtc_path = epub_to_xtc(epub_path, str(xtc_dir), bits=2, dither_2bit=dither_2bit,
+                                   brightness=brightness, device=device)
 
         else:  # epub
             console.print(f"\n[cyan]EPUB → XTCH[/cyan]")
-            xtc_path = epub_to_xtc(str(input_path), str(xtc_dir), bits=2, dither_2bit=dither_2bit, brightness=brightness)
+            xtc_path = epub_to_xtc(str(input_path), str(xtc_dir), bits=2, dither_2bit=dither_2bit,
+                                   brightness=brightness, device=device)
 
         console.print(f"\n[green bold]✓ 完了！[/green bold]")
         console.print(f"  XTCH ファイル：{xtc_path}")
